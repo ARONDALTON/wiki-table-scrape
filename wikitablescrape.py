@@ -22,9 +22,8 @@ class WikiPage(object):
         if not self._tables:
             # Parse the table data from the page
             classes = {"class": ["sortable", "plainrowheaders"]}
-            tags = self.soup.findAll("table", classes)
-            self._tables = [WikiTable(tag, index)
-                            for index, tag in enumerate(tags)]
+            tags = self.soup.find_all("table", classes)
+            self._tables = [WikiTable(tag) for tag in tags]
         return self._tables
 
     def table(self, name: str):
@@ -37,22 +36,27 @@ class WikiPage(object):
 class WikiTable(object):
     """Table in a Wikipedia page."""
 
-    def __init__(self, tag: bs4.Tag, index: int):
-        """Define a table within a Wikipedia Page."""
+    def __init__(self, tag: bs4.Tag):
         self.tag = tag
-        self.index = index
+        self._name = None
 
     def __repr__(self):
         return '<WikiTable "{}">'.format(self.name)
 
     @property
     def name(self):
-        captions = self.tag.findAll('caption')
-        if not captions:
-            name = 'table_{}'.format(self.index)
-        else:
-            name = strip_footnotes(captions[0])
-        return name
+        """Return table name parsed from caption or headline."""
+        if not self._name:
+            captions = self.tag.find_all('caption')
+            if captions:
+                self._name = strip_footnotes(captions[0])
+            else:
+                headline = previous_headline_element(self.tag)
+                if not headline:
+                    error = 'No name found for table "{}"'.format(self.tag)
+                    raise ValueError(error)
+                self._name = headline[0].text
+        return self._name
 
     def to_csv(self, filepath: str):
         """Export the table to a CSV file at given filepath."""
@@ -100,8 +104,8 @@ def write_html_table_to_csv(table: bs4.Tag, writer):
     # Hold elements that span multiple rows in a list of
     # dictionaries that track 'rows_left' and 'value'
     saved_rowspans = []
-    for row in table.findAll("tr"):
-        cells = row.findAll(["th", "td"])
+    for row in table.find_all("tr"):
+        cells = row.find_all(["th", "td"])
 
         # If the first row, use it to define width of table
         if len(saved_rowspans) == 0:
@@ -155,13 +159,13 @@ def clean_data(row):
 
     for cell in row:
         # Strip references from the cell
-        references = cell.findAll("sup", {"class": "reference"})
+        references = cell.find_all("sup", {"class": "reference"})
         if references:
             for ref in references:
                 ref.extract()
 
         # Strip sortkeys from the cell
-        sortkeys = cell.findAll("span", {"class": "sortkey"})
+        sortkeys = cell.find_all("span", {"class": "sortkey"})
         if sortkeys:
             for ref in sortkeys:
                 ref.extract()
@@ -181,6 +185,18 @@ def clean_data(row):
 
 def strip_footnotes(tag: bs4.Tag) -> str:
     """Remove wikipedia footnotes (e.g. [14]) from text."""
-    stripped = ''.join(text for text in tag.findAll(text=True)
+    stripped = ''.join(text for text in tag.find_all(text=True)
                        if not text.startswith('['))
     return stripped
+
+
+def previous_headline_element(tag: bs4.Tag) -> bs4.Tag:
+    """Return first Wikipedia-style headline element before a given tag."""
+    for element in tag.findPreviousSiblings():
+        if not isinstance(element, bs4.Tag):
+            continue
+        if not element.name == 'h2':
+            continue
+        headline = element.find_all('span', {'class': 'mw-headline'})
+        if headline:
+            return headline

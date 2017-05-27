@@ -16,26 +16,13 @@ MOUNTAINS = wikitablescrape.WikiPage(
     "https://en.wikipedia.org/wiki/List_of_mountains_by_elevation"
 )
 
-
-def test_all():
-    """Create all known tables in a temporary output folder."""
-    testfolder = tempfile.mkdtemp()
-
-    wikitablescrape.scrape(
-        url="https://en.wikipedia.org/wiki/List_of_volcanoes_by_elevation",
-        output_name=os.path.join(testfolder, "volcanoes")
-    )
-
-    wikitablescrape.scrape(
-        url="https://en.wikipedia.org/wiki/List_of_National_Basketball_Association_career_scoring_leaders",
-        output_name=os.path.join(testfolder, "nba")
-    )
-
-    shutil.rmtree(testfolder)
+CONGRESS = wikitablescrape.WikiPage(
+    "https://en.wikipedia.org/wiki/Current_members_of_the_United_States_House_of_Representatives"
+)
 
 
-def test_list_tables():
-    """Can list available tables on a Wikipedia page."""
+def test_table_names():
+    """Can list available tables on a page (named by caption)."""
     table_names = [table.name for table in FILMS.tables]
     assert table_names == [
         'Highest-grossing films',
@@ -45,18 +32,24 @@ def test_list_tables():
     ]
 
 
-# TODO -- Should Use parent section's header name (e.g. 8000 meters)
-def test_list_tables_no_caption():
-    """Can list tables by index that have no caption."""
+def test_table_names_no_caption():
+    """Can list tables that have no caption by section headline."""
     table_names = [table.name for table in MOUNTAINS.tables]
     assert table_names == [
-        'table_0', 'table_1', 'table_2', 'table_3', 'table_4',
-        'table_5', 'table_6', 'table_7', 'table_8'
+        '8,000 metres',
+        '7,000 metres',
+        '6,000 metres',
+        '5,000 metres',
+        '4,000 metres',
+        '3,000 metres',
+        '2,000 metres',
+        '1,000 metres',
+        'Under 1,000 metres'
     ]
 
 
 def test_scrape_single_table():
-    """Can scrape a single table from a page and return it in memory."""
+    """Can scrape a single table from a page and write it to a CSV."""
     # Create the CSV in a test directory
     testdir = tempfile.mkdtemp()
     output = os.path.join(testdir, 'testfile.csv')
@@ -70,3 +63,9 @@ def test_scrape_single_table():
     assert headers == ['Rank', 'Peak', 'Title', 'Worldwide gross', 'Year', 'Reference(s)']
     assert row_one == ['1', '1', 'Avatar', '$2,787,965,087', '2009', '']
     shutil.rmtree(testdir)
+
+
+# TODO -- Build this test that rowspan tables are read properly
+def test_rowspan_table():
+    """Can properly parse an HTML table with many rowspans."""
+    pass
