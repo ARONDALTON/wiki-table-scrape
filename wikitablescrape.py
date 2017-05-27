@@ -4,8 +4,67 @@ import csv
 import os
 import platform
 
-from bs4 import BeautifulSoup
+import bs4
 import requests
+
+
+class WikiPage(object):
+    """Basic components of a Wikipedia page."""
+
+    def __init__(self, url: str):
+        resp = requests.get(url)
+        self.soup = bs4.BeautifulSoup(resp.content, 'lxml')
+        self._tables = None
+
+    @property
+    def tables(self):
+        """Return parsed table data for this Wiki page."""
+        if not self._tables:
+            # Parse the table data from the page
+            classes = {"class": ["sortable", "plainrowheaders"]}
+            tags = self.soup.findAll("table", classes)
+            self._tables = [WikiTable(tag, index)
+                            for index, tag in enumerate(tags)]
+        return self._tables
+
+    def table(self, name: str):
+        """Return a table in a page by its name."""
+        for table in self.tables:
+            if table.name == name:
+                return table
+
+
+class WikiTable(object):
+    """Table in a Wikipedia page."""
+
+    def __init__(self, tag: bs4.Tag, index: int):
+        """Define a table within a Wikipedia Page."""
+        self.tag = tag
+        self.index = index
+
+    def __repr__(self):
+        return '<WikiTable "{}">'.format(self.name)
+
+    @property
+    def name(self):
+        captions = self.tag.findAll('caption')
+        if not captions:
+            name = 'table_{}'.format(self.index)
+        else:
+            name = strip_footnotes(captions[0])
+        return name
+
+    def to_csv(self, filepath: str):
+        """Export the table to a CSV file at given filepath."""
+        with open(filepath, mode='w', newline='', encoding='utf-8') as output:
+            # Deal with Windows inserting an extra '\r' in line terminators
+            if platform.system() == 'Windows':
+                writer = csv.writer(output, lineterminator='\n')
+            else:
+                writer = csv.writer(output)
+
+            write_html_table_to_csv(self.tag, writer)
+
 
 def scrape(url, output_name):
     """Create CSVs from all tables in a Wikipedia article.
@@ -16,10 +75,7 @@ def scrape(url, output_name):
     """
 
     # Read tables from Wikipedia article into list of HTML strings
-    resp = requests.get(url)
-    soup = BeautifulSoup(resp.content, 'lxml')
-    table_classes = {"class": ["sortable", "plainrowheaders"]}
-    wikitables = soup.findAll("table", table_classes)
+    page = WikiPage(url)
 
     # Create folder for output if it doesn't exist
     try:
@@ -27,31 +83,13 @@ def scrape(url, output_name):
     except Exception:  # Generic OS Error
         pass
 
-    for index, table in enumerate(wikitables):
-        # Make a unique file name for each CSV
-        if index == 0:
-            filename = output_name
-        else:
-            filename = output_name + '_' + str(index)
-
-        filepath = os.path.join(output_name, filename) + '.csv'
-
-        with open(filepath, mode='w', newline='', encoding='utf-8') as output:
-            # Deal with Windows inserting an extra '\r' in line terminators
-            if platform.system() == 'Windows':
-                kwargs = {'lineterminator': '\n'}
-
-                csv_writer = csv.writer(output,
-                                        quoting=csv.QUOTE_ALL,
-                                        **kwargs)
-            else:
-                csv_writer = csv.writer(output,
-                                        quoting=csv.QUOTE_ALL)
-
-            write_html_table_to_csv(table, csv_writer)
+    for table in page.tables:
+        filename = '_'.join(table.name.lower().split()) + '.csv'
+        filepath = os.path.join(output_name, filename)
+        table.to_csv(filepath)
 
 
-def write_html_table_to_csv(table, writer):
+def write_html_table_to_csv(table: bs4.Tag, writer):
     """Write HTML table from Wikipedia to a CSV file.
 
     ARGS:
@@ -129,11 +167,8 @@ def clean_data(row):
                 ref.extract()
 
         # Strip footnotes from text and join into a single string
-        text_items = cell.findAll(text=True)
-        no_footnotes = [text for text in text_items if text[0] != '[']
-
         cleaned = (
-            ''.join(no_footnotes)  # Combine elements into single string
+            strip_footnotes(cell)
             .replace('\xa0', ' ')  # Replace non-breaking spaces
             .replace('\n', ' ')  # Replace newlines
             .strip()
@@ -142,3 +177,10 @@ def clean_data(row):
         cleaned_cells += [cleaned]
 
     return cleaned_cells
+
+
+def strip_footnotes(tag: bs4.Tag) -> str:
+    """Remove wikipedia footnotes (e.g. [14]) from text."""
+    stripped = ''.join(text for text in tag.findAll(text=True)
+                       if not text.startswith('['))
+    return stripped
