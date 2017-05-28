@@ -48,6 +48,17 @@ def test_table_names_no_caption():
     ]
 
 
+def test_table_name_parent_header():
+    """Can fall back to naming table using sibling div of parent."""
+    table_names = [table.name for table in CONGRESS.tables]
+    assert table_names == [
+        'Regional membership',
+        'Partisan mix of the House by state',
+        'Voting members by state',
+        'Delegates'
+    ]
+
+
 def test_scrape_single_table():
     """Can scrape a single table from a page and write it to a CSV."""
     # Create the CSV in a test directory

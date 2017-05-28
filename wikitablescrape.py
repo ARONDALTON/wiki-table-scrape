@@ -192,11 +192,13 @@ def strip_footnotes(tag: bs4.Tag) -> str:
 
 def previous_headline_element(tag: bs4.Tag) -> bs4.Tag:
     """Return first Wikipedia-style headline element before a given tag."""
-    for element in tag.findPreviousSiblings():
-        if not isinstance(element, bs4.Tag):
-            continue
-        if not element.name == 'h2':
-            continue
-        headline = element.find_all('span', {'class': 'mw-headline'})
-        if headline:
-            return headline
+    headline_style = {'class': 'mw-headline'}
+    for level in [tag, tag.parent, tag.parent.parent]:
+        for element in level.findPreviousSiblings():
+            if not isinstance(element, bs4.Tag):
+                continue
+            if not element.name == 'h2':
+                continue
+            headline = element.find_all('span', headline_style)
+            if headline:
+                return headline
