@@ -48,10 +48,10 @@ def scrape(url, output_name):
                 csv_writer = csv.writer(output,
                                         quoting=csv.QUOTE_ALL)
 
-            write_html_table_to_csv(table, csv_writer)
+            write_html_table_to_csv(table, csv_writer,url)
 
 
-def write_html_table_to_csv(table, writer):
+def write_html_table_to_csv(table, writer,url):
     """Write HTML table from Wikipedia to a CSV file.
 
     ARGS:
@@ -61,6 +61,13 @@ def write_html_table_to_csv(table, writer):
 
     # Hold elements that span multiple rows in a list of
     # dictionaries that track 'rows_left' and 'value'
+    import datetime
+    refline=("from: ",url,\
+        "on: ",datetime.datetime.today().strftime('%Y-%m-%d'),\
+        "using: wikitableScrape.py")
+
+    writer.writerow(refline)
+
     saved_rowspans = []
     for row in table.findAll("tr"):
         cells = row.findAll(["th", "td"])
